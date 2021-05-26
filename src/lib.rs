@@ -64,28 +64,59 @@ impl CfgType {
             None
         }
     }
+    
+    // TODO: сделать при помощи макроса
+    
+    pub fn is_int(&self) -> bool {
+        match self {
+            CfgType::IntNumber(_) => true,
+            _ => false
+        }
+    }
+    
+    pub fn is_float(&self) -> bool {
+        match self {
+            CfgType::FloatNumber(_) => true,
+            _ => false
+        }
+    }
+    
+    pub fn is_literal(&self) -> bool {
+        match self {
+            CfgType::Literal(_) => true,
+            _ => false
+        }
+    }
+    
+    pub fn is_string(&self) -> bool {
+        match self {
+            CfgType::String(_) => true,
+            _ => false
+        }
+    }
 }
 
 
 
 #[derive(Debug)]
 pub struct CfgLine {
-    name: String,
-    value: CfgType,
+    pub name: String,
+    pub value: CfgType,
 }
 
+/*
 pub struct CfgReader<'a> {
     char_stream: &'a mut dyn CharStream,
 }
+*/
 
-impl<'a> CfgReader<'a> {
-    pub fn new(char_stream: &'a mut dyn CharStream) -> Self {
-        Self { char_stream }
-    }
+pub trait CfgReader<'a> {
+    fn get_char_stream(&'a mut self) -> &'a mut dyn CharStream;
 
-    pub fn get_cfg_line(&mut self) -> Option<CfgLine> {
+    fn get_cfg_line(&'a mut self) -> Option<CfgLine> {
+        let char_stream = self.get_char_stream();
         loop {
-            let mut raw_line = self.char_stream.get_line()?;
+            let mut raw_line = char_stream.get_line()?;
             let sharp_pos = raw_line.find('#');
             if sharp_pos.is_some() {
                 raw_line = raw_line[0..sharp_pos.unwrap()].to_string();
@@ -113,62 +144,75 @@ impl<'a> CfgReader<'a> {
     }
 }
 
-/*
-struct FileCfgReader<'a> {
-    cfg_reader: CfgReader<'a>
+struct FileCharStream {
+    buf_reader: BufReader<File>,
+    index: usize,
+    current_line: String,
 }
 
-impl FileCfgReader {}
-*/
+impl FileCharStream {
+    fn new(filename: &str) -> Option<Self> {
+        match File::open(filename) {
+            Ok(f) => {
+                Some(Self {
+                    buf_reader: BufReader::new(f),
+                    index: 0,
+                    current_line: String::new(),
+                })
+            }
+            Err(_) => None
+        }
+    }
+}
+
+impl CharStream for FileCharStream {
+    fn get_char(&mut self) -> Option<char> {
+        // TODO: проверить self.index == self.current_line.len()
+        if self.current_line.is_empty() || self.index == self.current_line.len() {
+            let mut buf = String::new();
+            let res = self.buf_reader.read_line(&mut buf);
+            match res {
+                Ok(0) => return None,
+                Err(_) => return None,
+                Ok(_) => {
+                    self.current_line = buf;
+                    self.index = 0;
+                }
+            }
+        }
+
+        self.index += 1;
+        self.current_line.chars().nth(self.index - 1)
+    }
+}
+
+pub struct FileCfgReader {
+    char_stream: FileCharStream,
+}
+
+impl FileCfgReader {
+    pub fn from_filename(filename: &str) -> Option<FileCfgReader> {
+        Some(Self {
+            char_stream: FileCharStream::new(filename)?
+        })
+    }
+}
+
+impl<'a> CfgReader<'a> for FileCfgReader {
+    fn get_char_stream(&'a mut self) -> &'a mut dyn CharStream {
+        &mut self.char_stream
+    }
+}
 
 
 #[test]
 fn reader_test() {
-    struct A {
-        br: BufReader<File>,
-        index: usize,
-        current_line: String,
-    }
-
-    impl A {
-        fn new() -> Self {
-            let f = File::open("example.cfg").unwrap();
-            Self {
-                br: BufReader::new(f),
-                index: 0,
-                current_line: String::new(),
-            }
-        }
-    }
-
-    impl CharStream for A {
-        fn get_char(&mut self) -> Option<char> {
-            // TODO: проверить self.index == self.current_line.len()
-            if self.current_line.is_empty() || self.index == self.current_line.len() {
-                let mut buf = String::new();
-                let res = self.br.read_line(&mut buf);
-                match res {
-                    Ok(0) => return None,
-                    Err(_) => return None,
-                    Ok(_) => {
-                        self.current_line = buf;
-                        self.index = 0;
-                    }
-                }
-            }
-
-            self.index += 1;
-            self.current_line.chars().nth(self.index - 1)
-        }
-    }
-
-    let mut a = A::new();
-    let mut c = CfgReader::new(&mut a);
-    println!("{:?}", c.get_cfg_line());
-    println!("{:?}", c.get_cfg_line());
-    println!("{:?}", c.get_cfg_line());
-    println!("{:?}", c.get_cfg_line());
-    println!("{:?}", c.get_cfg_line());
-    println!("{:?}", c.get_cfg_line());
-    println!("{:?}", c.get_cfg_line());
+    let mut a = FileCfgReader::from_filename("example.cfg").unwrap();
+    println!("{:?}", a.get_cfg_line());
+    println!("{:?}", a.get_cfg_line());
+    println!("{:?}", a.get_cfg_line());
+    println!("{:?}", a.get_cfg_line());
+    println!("{:?}", a.get_cfg_line());
+    println!("{:?}", a.get_cfg_line());
+    println!("{:?}", a.get_cfg_line());
 }
