@@ -1,26 +1,4 @@
-use std::{
-    fs::File,
-    io::{BufRead, BufReader},
-};
-
-
-pub trait CharStream {
-    fn get_char(&mut self) -> Option<char>;
-    fn get_line(&mut self) -> Option<String> {
-        let mut line = String::new();
-        while let Some(c) = self.get_char() {
-            line.push(c);
-            if c == '\n' {
-                break;
-            }
-        }
-        if line.is_empty() {
-            None
-        } else {
-            Some(line)
-        }
-    }
-}
+mod char_stream;
 
 #[derive(Debug)]
 pub enum CfgType {
@@ -31,7 +9,7 @@ pub enum CfgType {
 }
 
 impl CfgType {
-    fn from_string(s: String) -> Option<Self> {
+    fn parse(s: String) -> Option<Self> {
         let is_int = s.parse::<i32>();
         let is_float = s.parse::<f32>();
         let is_literal = {
@@ -104,16 +82,10 @@ pub struct CfgLine {
     pub value: CfgType,
 }
 
-/*
-pub struct CfgReader<'a> {
-    char_stream: &'a mut dyn CharStream,
-}
-*/
-
 pub trait CfgReader<'a> {
-    fn get_char_stream(&'a mut self) -> &'a mut dyn CharStream;
+    fn get_char_stream(&'a mut self) -> &'a mut dyn char_stream::CharStream;
 
-    fn get_cfg_line(&'a mut self) -> Option<CfgLine> {
+    fn get_next(&'a mut self) -> Option<CfgLine> {
         let char_stream = self.get_char_stream();
         loop {
             let mut raw_line = char_stream.get_line()?;
@@ -129,7 +101,7 @@ pub trait CfgReader<'a> {
             
             let value = {
                 let raw_value = parts[1].to_string();
-                CfgType::from_string(raw_value)
+                CfgType::parse(raw_value)
             };
             
             if value.is_none() {
@@ -144,62 +116,21 @@ pub trait CfgReader<'a> {
     }
 }
 
-struct FileCharStream {
-    buf_reader: BufReader<File>,
-    index: usize,
-    current_line: String,
-}
-
-impl FileCharStream {
-    fn new(filename: &str) -> Option<Self> {
-        match File::open(filename) {
-            Ok(f) => {
-                Some(Self {
-                    buf_reader: BufReader::new(f),
-                    index: 0,
-                    current_line: String::new(),
-                })
-            }
-            Err(_) => None
-        }
-    }
-}
-
-impl CharStream for FileCharStream {
-    fn get_char(&mut self) -> Option<char> {
-        // TODO: проверить self.index == self.current_line.len()
-        if self.current_line.is_empty() || self.index == self.current_line.len() {
-            let mut buf = String::new();
-            let res = self.buf_reader.read_line(&mut buf);
-            match res {
-                Ok(0) => return None,
-                Err(_) => return None,
-                Ok(_) => {
-                    self.current_line = buf;
-                    self.index = 0;
-                }
-            }
-        }
-
-        self.index += 1;
-        self.current_line.chars().nth(self.index - 1)
-    }
-}
 
 pub struct FileCfgReader {
-    char_stream: FileCharStream,
+    char_stream: char_stream::FileCharStream,
 }
 
 impl FileCfgReader {
-    pub fn from_filename(filename: &str) -> Option<FileCfgReader> {
+    pub fn open(filename: &str) -> Option<FileCfgReader> {
         Some(Self {
-            char_stream: FileCharStream::new(filename)?
+            char_stream: char_stream::FileCharStream::new(filename)?
         })
     }
 }
 
 impl<'a> CfgReader<'a> for FileCfgReader {
-    fn get_char_stream(&'a mut self) -> &'a mut dyn CharStream {
+    fn get_char_stream(&'a mut self) -> &'a mut dyn char_stream::CharStream {
         &mut self.char_stream
     }
 }
@@ -207,12 +138,12 @@ impl<'a> CfgReader<'a> for FileCfgReader {
 
 #[test]
 fn reader_test() {
-    let mut a = FileCfgReader::from_filename("example.cfg").unwrap();
-    println!("{:?}", a.get_cfg_line());
-    println!("{:?}", a.get_cfg_line());
-    println!("{:?}", a.get_cfg_line());
-    println!("{:?}", a.get_cfg_line());
-    println!("{:?}", a.get_cfg_line());
-    println!("{:?}", a.get_cfg_line());
-    println!("{:?}", a.get_cfg_line());
+    let mut a = FileCfgReader::open("example.cfg").unwrap();
+    println!("{:?}", a.get_next());
+    println!("{:?}", a.get_next());
+    println!("{:?}", a.get_next());
+    println!("{:?}", a.get_next());
+    println!("{:?}", a.get_next());
+    println!("{:?}", a.get_next());
+    println!("{:?}", a.get_next());
 }
