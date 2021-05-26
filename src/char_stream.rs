@@ -1,7 +1,4 @@
-use std::{
-    fs::File,
-    io::{BufRead, BufReader},
-};
+use std::{fs::File, io::{BufRead, BufReader}, str::Chars};
 
 pub trait CharStream {
     fn get_char(&mut self) -> Option<char>;
@@ -60,4 +57,37 @@ impl CharStream for FileCharStream {
         self.index += 1;
         self.current_line.chars().nth(self.index - 1)
     }
+}
+
+struct StringCharStream<'a> {
+    char_iter: Chars<'a>
+}
+
+impl<'a> StringCharStream<'a> {
+    fn new(string: &'a String) -> Self {
+        StringCharStream {
+            char_iter: string.chars().into_iter()
+        }
+    }
+}
+
+impl<'a> CharStream for StringCharStream<'a> {
+    fn get_char(&mut self) -> Option<char> {
+        self.char_iter.next()
+    }
+}
+
+#[test]
+fn char_stream_test() {
+    let s = &"line1\nline2\nline3\nabc".to_string();
+    let mut s = StringCharStream::new(s);
+    
+    assert_eq!(s.get_line(), Some("line1\n".to_string()));
+    assert_eq!(s.get_line(), Some("line2\n".to_string()));
+    assert_eq!(s.get_line(), Some("line3\n".to_string()));
+    assert_eq!(s.get_char(), Some('a'));
+    assert_eq!(s.get_char(), Some('b'));
+    assert_eq!(s.get_char(), Some('c'));
+    assert_eq!(s.get_char(), None);
+    assert_eq!(s.get_line(), None);
 }
